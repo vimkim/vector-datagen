@@ -10,7 +10,7 @@ def generate_vector_dataset_chunked(
     num_vectors,
     dimensions,
     seed=None,
-    base_filename="pgvector_test_data",
+    base_filename="vector_data",
     to_stdout=False,
     chunk_size=10000,  # Number of rows to generate per chunk
 ):
@@ -108,8 +108,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--base_filename",
         type=str,
-        default="pgvector_test_data",
-        help="Base name for the output file (default: pgvector_test_data)",
+        default="vector_data",
+        help="Base name for the output file (default: vector_data)",
     )
     parser.add_argument(
         "--stdout",
