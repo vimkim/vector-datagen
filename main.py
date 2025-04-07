@@ -3,6 +3,7 @@ import csv
 import os
 import argparse
 import sys
+import math
 
 
 def generate_vector_dataset_chunked(
@@ -28,10 +29,12 @@ def generate_vector_dataset_chunked(
     """
     if seed is not None:
         np.random.seed(seed)
-        print(f"Using seed: {seed}")
+        print(f"Using seed: {seed}", file=sys.stderr)
 
+    total_chunks = math.ceil(num_vectors / chunk_size)
     print(
-        f"Generating {num_vectors} vectors with {dimensions} dimensions in chunks of {chunk_size} rows..."
+        f"Generating {num_vectors} vectors with {dimensions} dimensions in {total_chunks} chunks of up to {chunk_size} rows each...",
+        file=sys.stderr,
     )
 
     header = [f"dim_{i}" for i in range(dimensions)]
@@ -39,14 +42,19 @@ def generate_vector_dataset_chunked(
     if to_stdout:
         writer = csv.writer(sys.stdout)
         writer.writerow(header)
-        for start in range(0, num_vectors, chunk_size):
+        for chunk_index, start in enumerate(range(0, num_vectors, chunk_size), start=1):
             end = min(start + chunk_size, num_vectors)
             chunk = np.random.normal(0, 1, (end - start, dimensions))
             norms = np.linalg.norm(chunk, axis=1, keepdims=True)
             normalized_chunk = chunk / norms
             writer.writerows(normalized_chunk)
+            print(
+                f"Processed chunk {chunk_index}/{total_chunks} ({end} rows written)",
+                file=sys.stderr,
+            )
         print(
-            "\nInspection complete. No file was created as --stdout flag was provided."
+            "\nInspection complete. No file was created as --stdout flag was provided.",
+            file=sys.stderr,
         )
         return None
     else:
@@ -55,16 +63,25 @@ def generate_vector_dataset_chunked(
         with open(filename, "w", newline="") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(header)
-            for start in range(0, num_vectors, chunk_size):
+            for chunk_index, start in enumerate(
+                range(0, num_vectors, chunk_size), start=1
+            ):
                 end = min(start + chunk_size, num_vectors)
                 chunk = np.random.normal(0, 1, (end - start, dimensions))
                 norms = np.linalg.norm(chunk, axis=1, keepdims=True)
                 normalized_chunk = chunk / norms
                 writer.writerows(normalized_chunk)
+                print(
+                    f"Processed chunk {chunk_index}/{total_chunks} ({end} rows written)",
+                    file=sys.stderr,
+                )
 
-        file_size = os.path.getsize(filename) / (1024 * 1024)  # Size in MB
-        print(f"Generated {filename} ({file_size:.2f} MB)")
-        print(f"File contains {num_vectors} vectors with {dimensions} dimensions each")
+        file_size = os.path.getsize(filename) / (1024 * 1024)  # size in MB
+        print(f"Generated {filename} ({file_size:.2f} MB)", file=sys.stderr)
+        print(
+            f"File contains {num_vectors} vectors with {dimensions} dimensions each",
+            file=sys.stderr,
+        )
         return filename
 
 
@@ -93,8 +110,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--base_filename",
         type=str,
-        default="pgvector_test_data",
-        help="Base name for the output file (default: pgvector_test_data)",
+        default="vector_data",
+        help="Base name for the output file (default: vector_data)",
     )
     parser.add_argument(
         "--stdout",
