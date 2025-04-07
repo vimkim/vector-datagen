@@ -3,19 +3,20 @@ import csv
 import os
 import argparse
 import sys
-import math
+from tqdm import tqdm
 
 
 def generate_vector_dataset_chunked(
     num_vectors,
     dimensions,
     seed=None,
-    base_filename="vector_data",
+    base_filename="pgvector_test_data",
     to_stdout=False,
     chunk_size=10000,  # Number of rows to generate per chunk
 ):
     """
-    Generate random float vectors for pgvector performance testing in chunks.
+    Generate random float vectors for pgvector performance testing in chunks,
+    displaying a progress bar during the writing process.
 
     Vectors are generated from a normal distribution (mean=0, std=1) and normalized to unit length.
 
@@ -31,9 +32,9 @@ def generate_vector_dataset_chunked(
         np.random.seed(seed)
         print(f"Using seed: {seed}", file=sys.stderr)
 
-    total_chunks = math.ceil(num_vectors / chunk_size)
+    total_chunks = (num_vectors + chunk_size - 1) // chunk_size
     print(
-        f"Generating {num_vectors} vectors with {dimensions} dimensions in {total_chunks} chunks of up to {chunk_size} rows each...",
+        f"Generating {num_vectors} vectors with {dimensions} dimensions in {total_chunks} chunks...",
         file=sys.stderr,
     )
 
@@ -42,16 +43,15 @@ def generate_vector_dataset_chunked(
     if to_stdout:
         writer = csv.writer(sys.stdout)
         writer.writerow(header)
-        for chunk_index, start in enumerate(range(0, num_vectors, chunk_size), start=1):
+        # Use tqdm for progress bar (updates on stderr)
+        for start in tqdm(
+            range(0, num_vectors, chunk_size), file=sys.stderr, desc="Processing chunks"
+        ):
             end = min(start + chunk_size, num_vectors)
             chunk = np.random.normal(0, 1, (end - start, dimensions))
             norms = np.linalg.norm(chunk, axis=1, keepdims=True)
             normalized_chunk = chunk / norms
             writer.writerows(normalized_chunk)
-            print(
-                f"Processed chunk {chunk_index}/{total_chunks} ({end} rows written)",
-                file=sys.stderr,
-            )
         print(
             "\nInspection complete. No file was created as --stdout flag was provided.",
             file=sys.stderr,
@@ -63,21 +63,19 @@ def generate_vector_dataset_chunked(
         with open(filename, "w", newline="") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(header)
-            for chunk_index, start in enumerate(
-                range(0, num_vectors, chunk_size), start=1
+            for start in tqdm(
+                range(0, num_vectors, chunk_size),
+                file=sys.stderr,
+                desc="Processing chunks",
             ):
                 end = min(start + chunk_size, num_vectors)
                 chunk = np.random.normal(0, 1, (end - start, dimensions))
                 norms = np.linalg.norm(chunk, axis=1, keepdims=True)
                 normalized_chunk = chunk / norms
                 writer.writerows(normalized_chunk)
-                print(
-                    f"Processed chunk {chunk_index}/{total_chunks} ({end} rows written)",
-                    file=sys.stderr,
-                )
 
         file_size = os.path.getsize(filename) / (1024 * 1024)  # size in MB
-        print(f"Generated {filename} ({file_size:.2f} MB)", file=sys.stderr)
+        print(f"\nGenerated {filename} ({file_size:.2f} MB)", file=sys.stderr)
         print(
             f"File contains {num_vectors} vectors with {dimensions} dimensions each",
             file=sys.stderr,
@@ -110,8 +108,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--base_filename",
         type=str,
-        default="vector_data",
-        help="Base name for the output file (default: vector_data)",
+        default="pgvector_test_data",
+        help="Base name for the output file (default: pgvector_test_data)",
     )
     parser.add_argument(
         "--stdout",
