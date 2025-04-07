@@ -5,15 +5,16 @@ import argparse
 import sys
 
 
-def generate_vector_dataset(
+def generate_vector_dataset_chunked(
     num_vectors,
     dimensions,
     seed=None,
-    base_filename="pgvector_test_data",
+    base_filename="vector_data",
     to_stdout=False,
+    chunk_size=10000,  # Number of rows to generate per chunk
 ):
     """
-    Generate random float vectors for pgvector performance testing.
+    Generate random float vectors for pgvector performance testing in chunks.
 
     Vectors are generated from a normal distribution (mean=0, std=1) and normalized to unit length.
 
@@ -23,45 +24,47 @@ def generate_vector_dataset(
         seed (int, optional): Random seed for reproducibility.
         base_filename (str): Base name for the output file.
         to_stdout (bool): If True, print CSV output to stdout instead of writing to a file.
+        chunk_size (int): Number of rows to process per chunk.
     """
     if seed is not None:
         np.random.seed(seed)
         print(f"Using seed: {seed}")
 
-    print(f"Generating {num_vectors} vectors with {dimensions} dimensions...")
+    print(
+        f"Generating {num_vectors} vectors with {dimensions} dimensions in chunks of {chunk_size} rows..."
+    )
 
-    # Generate random vectors from a normal distribution and normalize them
-    vectors = np.random.normal(0, 1, (num_vectors, dimensions))
-    norms = np.linalg.norm(vectors, axis=1)[:, np.newaxis]
-    vectors = vectors / norms
-
-    # Prepare CSV header
     header = [f"dim_{i}" for i in range(dimensions)]
 
     if to_stdout:
-        # Print CSV output to stdout
         writer = csv.writer(sys.stdout)
         writer.writerow(header)
-        writer.writerows(vectors)
+        for start in range(0, num_vectors, chunk_size):
+            end = min(start + chunk_size, num_vectors)
+            chunk = np.random.normal(0, 1, (end - start, dimensions))
+            norms = np.linalg.norm(chunk, axis=1, keepdims=True)
+            normalized_chunk = chunk / norms
+            writer.writerows(normalized_chunk)
         print(
             "\nInspection complete. No file was created as --stdout flag was provided."
         )
         return None
     else:
-        # Construct filename with parameters engraved
         seed_part = f"_seed{seed}" if seed is not None else ""
         filename = f"{base_filename}_{num_vectors}rows_{dimensions}dim{seed_part}.csv"
-
-        # Write vectors to CSV file
         with open(filename, "w", newline="") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(header)
-            writer.writerows(vectors)
+            for start in range(0, num_vectors, chunk_size):
+                end = min(start + chunk_size, num_vectors)
+                chunk = np.random.normal(0, 1, (end - start, dimensions))
+                norms = np.linalg.norm(chunk, axis=1, keepdims=True)
+                normalized_chunk = chunk / norms
+                writer.writerows(normalized_chunk)
 
-        file_size = os.path.getsize(filename) / (1024 * 1024)  # size in MB
+        file_size = os.path.getsize(filename) / (1024 * 1024)  # Size in MB
         print(f"Generated {filename} ({file_size:.2f} MB)")
         print(f"File contains {num_vectors} vectors with {dimensions} dimensions each")
-
         return filename
 
 
@@ -98,13 +101,20 @@ if __name__ == "__main__":
         action="store_true",
         help="Print CSV output to stdout instead of creating a file",
     )
+    parser.add_argument(
+        "--chunk_size",
+        type=int,
+        default=10000,
+        help="Number of rows to generate per chunk (default: 10000)",
+    )
 
     args = parser.parse_args()
 
-    generate_vector_dataset(
+    generate_vector_dataset_chunked(
         num_vectors=args.rows,
         dimensions=args.dimensions,
         seed=args.seed,
         base_filename=args.base_filename,
         to_stdout=args.stdout,
+        chunk_size=args.chunk_size,
     )
